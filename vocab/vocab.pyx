@@ -41,7 +41,7 @@ cdef class Stopwords:
         # need an id.  So make them the largest uint32_t to avoid id conflicts
         # with the non-vocab.
         cdef uint32_t wordid = 4294967295
-        words = pkgutil.get_data('topical', 'stop_words.txt').strip().split()
+        words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
         self.word2id.clear()
         self.id2word.clear()
         for word in words:
