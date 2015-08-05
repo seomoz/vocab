@@ -31,4 +31,3 @@ Create a Vocabulary instance by loading a vocabulary file:
 v = Vocabulary.load('my_vocab.gz')
 ```
 
-
