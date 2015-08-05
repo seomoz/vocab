@@ -227,10 +227,19 @@ cdef class Vocabulary:
         return self._table[idxs]
 
     def accumulate(self, doc):
+        """
+        Accumulate the n-gram counts for the document. This method tokenizes the
+        input string with the tokenizer that was specified when the Vocabulary
+        instance was created.
+        """
         cdef vector[string] tokens = self._tokenizer(doc)
         self._vocabptr.accumulate(tokens, self.stopwords.word2id)
 
     def accumulate_tokens(self, tokens):
+        """
+        Accumulate the n-gram counts for the list of tokens (this is useful
+        when the document has already been tokenized.)
+        """
         self._vocabptr.accumulate(tokens, self.stopwords.word2id)
 
     def update(self, keep=100000, min_count=1):
