@@ -22,7 +22,7 @@ for nkeep, min_count in keep:
         vocab.accumulate(doc)
         ndocs += 1
     vocab.update(nkeep, min_count)
-    vocab.save('my_vocab.gz')
+vocab.save('my_vocab.gz')
 ```
 
 Create a Vocabulary instance by loading a vocabulary file:
