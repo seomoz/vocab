@@ -32,23 +32,15 @@ def alpha_tokenize(s):
     return [token for token in candidates if re_keep.search(token)]
 
 
-cdef class Stopwords:
-    def __cinit__(self):
-        # use a uint32_t for word ids
+cdef load_stopwords(set[string]& stopwords):
+    words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
+    stopwords.clear()
+    for word in words:
+        stopwords.insert(word)
 
-        # Stop words may or may not be a part of the vocabulary (as unigrams),
-        # but we need to accumulate their counts for finding n-grams so they
-        # need an id.  So make them the largest uint32_t to avoid id conflicts
-        # with the non-vocab.
-        cdef uint32_t wordid = 4294967295
-        words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
-        self.word2id.clear()
-        self.id2word.clear()
-        for word in words:
-            self.min_id = wordid
-            self.word2id[word] = wordid
-            self.id2word[wordid] = word
-            wordid -= 1
+
+cdef set[string] STOP_WORDS
+load_stopwords(STOP_WORDS)
 
 
 cdef class Vocabulary:
@@ -85,9 +77,8 @@ cdef class Vocabulary:
                     ngram[token] = tokenid
                 v.push_back(ngram)
 
-        self._vocabptr = new Vocab(v)
+        self._vocabptr = new Vocab(v, STOP_WORDS)
         self.counts = np.array(counts, dtype=np.uint32) if counts else None
-        self.stopwords = Stopwords()
 
         if build_table and counts:
             self._table = self._build_table(table_size, power)
@@ -155,19 +146,8 @@ cdef class Vocabulary:
         Write the vocabulary to a file
         """
         with GzipFile(fname, 'w') as fout:
-            # first the stop words
-            sw_count = len(self.stopwords.word2id)
-            for k in xrange(self.stopwords.min_id,
-                            self.stopwords.min_id+sw_count):
-                cnt = self._vocabptr.get_swid2count(<size_t>k)
-                if cnt:
-                    fout.write(self.stopwords.id2word[k])
-                    fout.write('\t')
-                    fout.write(str(cnt))
-                    fout.write('\n')
 
             # then the n-grams
-            we = self.stopwords.word2id.end()
             for k in xrange(self._vocabptr.size()):
                 t = self.id2word(k)
                 # don't keep n-grams that end in a stop word
@@ -175,7 +155,7 @@ cdef class Vocabulary:
                 # that start with a stopword
                 if '_' in t:
                     tokens = t.split('_')
-                    if self.stopwords.word2id.find(tokens[-1]) != we:
+                    if STOP_WORDS.find(tokens[-1]) != STOP_WORDS.end():
                         continue
                 fout.write(self.id2word(k))
                 fout.write('\t')
@@ -233,14 +213,14 @@ cdef class Vocabulary:
         instance was created.
         """
         cdef vector[string] tokens = self._tokenizer(doc)
-        self._vocabptr.accumulate(tokens, self.stopwords.word2id)
+        self._vocabptr.accumulate(tokens)
 
     def accumulate_tokens(self, tokens):
         """
         Accumulate the n-gram counts for the list of tokens (this is useful
         when the document has already been tokenized.)
         """
-        self._vocabptr.accumulate(tokens, self.stopwords.word2id)
+        self._vocabptr.accumulate(tokens)
 
     def update(self, keep=100000, min_count=1):
         """
@@ -249,8 +229,7 @@ cdef class Vocabulary:
         keep: the number of new tokens to add to the vocabulary
         min_count: the minimum count to keep
         """
-        self._vocabptr.update(keep, min_count,
-                              self.stopwords.word2id, self.stopwords.id2word)
+        self._vocabptr.update(keep, min_count)
 
     @classmethod
     def load(cls, fname, tokenizer=alpha_tokenize,

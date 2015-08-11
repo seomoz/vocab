@@ -3,16 +3,15 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include <map>
+#include <set>
 #include <algorithm>
 #include <utility>
 
 typedef std::unordered_map<std::string, uint32_t> vocab_ngram_t;
 typedef std::vector<vocab_ngram_t> vocab_t;
-typedef std::map<std::string, uint32_t> stop_t;
+typedef std::set<std::string> stopwords_t;
 typedef std::unordered_map<uint64_t, uint32_t> bigram_t;
 typedef std::pair<std::string, uint32_t> ngram_count_t;
-typedef std::unordered_map<uint32_t, uint32_t> stop_counts_t;
 
 
 void u32_to_u64(uint32_t x1, uint32_t x2, uint64_t & y)
@@ -31,7 +30,7 @@ void u64_to_u32(uint64_t y, uint32_t & x1, uint32_t & x2)
 class Vocab
 {
     public:
-        Vocab(vocab_t vocab);
+        Vocab(vocab_t vocab, stopwords_t stopwords);
         ~Vocab();
 
         // take a doc as a list of tokens and group the n-grams
@@ -45,9 +44,8 @@ class Vocab
         uint32_t get_swid2count(std::size_t);
 
         // for updating the vocab
-        void accumulate(std::vector<std::string> &, stop_t &);
-        void update(uint32_t, uint32_t, stop_t &,
-            std::map<uint32_t, std::string> &);
+        void accumulate(std::vector<std::string> &);
+        void update(uint32_t, uint32_t);
 
         // total words in the vocab
         uint32_t size(void);
@@ -59,12 +57,13 @@ class Vocab
         int max_ngram;
         std::vector<std::uint32_t> id2count;
 
+        // stopword set
+        stopwords_t stopwords;
+
         // for accumulating vocab and finding n-grams
         vocab_ngram_t unigrams_map;
         std::vector<uint32_t> unigrams;
         bigram_t bigrams;
-        std::size_t stop_offset;
-        stop_counts_t stop_counts;   // stop word counts
 
         // disable some default constructors
         Vocab();
@@ -73,10 +72,11 @@ class Vocab
 };
 
 
-Vocab::Vocab(vocab_t vocab)
+Vocab::Vocab(vocab_t vocab, stopwords_t stopwords)
 {
     this->vocab = vocab;
     max_ngram = vocab.size();
+    this->stopwords = stopwords;
 
     // make id2word
     vocab_t::iterator it_vocab;
@@ -102,7 +102,6 @@ Vocab::Vocab(vocab_t vocab)
 
     // initialize the attributes for accumulating n-grams
     unigrams_map.clear();
-    stop_counts.clear();
 }
 
 Vocab::~Vocab() {}
@@ -212,42 +211,16 @@ uint32_t Vocab::get_id2count(std::size_t k)
         return 0;   // return 0 if the id doesn't exist
 }
 
-uint32_t Vocab::get_swid2count(std::size_t k)
-{
-    return stop_counts[k];
-}
-
-void Vocab::accumulate(std::vector<std::string> & tokens, stop_t & stop_words)
+void Vocab::accumulate(std::vector<std::string> & tokens)
 {
     // accumulate n-gram counts for the doc
     if (max_ngram == 0)
     {
-        // just need the ungrams for now
+        // just need the unigrams for now
         std::vector<std::string>::iterator it;
         for (it = tokens.begin(); it != tokens.end(); ++it)
         {
-            stop_t::iterator got = stop_words.find(*it);
-            if (got == stop_words.end())
-            {
-                // token isn't a stop word so increment counts
-                vocab_ngram_t::iterator got_unigram = unigrams_map.find(*it);
-                if (got_unigram != unigrams_map.end())
-                    unigrams_map[*it] += 1;
-                else
-                    unigrams_map[*it] = 1;
-            }
-            else
-            {
-                // Accumulate the counts for stopwords
-                // Kept separate from the non-stopword unigrams as the easiest
-                // way to gather stopword counts w/out affecting later n-gram
-                // generation...
-                stop_counts_t::iterator sc = stop_counts.find(got->second);
-                if (sc != stop_counts.end())
-                    stop_counts[got->second] += 1;
-                else
-                    stop_counts[got->second] = 1;
-            }
+            unigrams_map[*it] += 1;
         }
     }
     else if (tokens.size() >= max_ngram + 1)
@@ -261,23 +234,14 @@ void Vocab::accumulate(std::vector<std::string> & tokens, stop_t & stop_words)
 
         // update unigram counts first
         std::vector<std::string>::iterator it;
-        stop_t::iterator it_stop;
+        stopwords_t::iterator it_stop;
         vocab_ngram_t::iterator it_vocab;
         for (it = tokens.begin(); it != tokens.end(); ++it)
         {
-            it_stop = stop_words.find(*it);
-            if (it_stop != stop_words.end())
-            {
-                // a stop word
-                unigrams[it_stop->second - stop_offset] += 1;
-            }
-            else
-            {
-                // check whether it is a unigram word
-                it_vocab = vocab[0].find(*it);
-                if (it_vocab != vocab[0].end())
-                    unigrams[it_vocab->second] += 1;
-            }
+            // check whether it is a unigram word
+            it_vocab = vocab[0].find(*it);
+            if (it_vocab != vocab[0].end())
+                unigrams[it_vocab->second] += 1;
         }
 
         // now update the n-gram counts
@@ -285,6 +249,11 @@ void Vocab::accumulate(std::vector<std::string> & tokens, stop_t & stop_words)
         for (std::size_t k = 0; k < tokens.size() - (n - 1); ++k)
         {
             std::string ngram = tokens[k];
+            // we don't want n-grams that start with stopwords
+            stopwords_t::iterator it_stop = stopwords.find(ngram);
+            if (it_stop != stopwords.end())
+                continue;
+
             for (std::size_t i = k + 1; i < k + n - 1; ++i)
                 ngram += "_" + tokens[i];
             it_vocab = vocab[max_ngram - 1].find(ngram);
@@ -303,17 +272,17 @@ void Vocab::accumulate(std::vector<std::string> & tokens, stop_t & stop_words)
                     next_tokenid = it_vocab->second;
                     found = true;
                 }
-                else
-                {
-                    // check if it's a stop word
-                    it_stop = stop_words.find(next_token);
-                    if (it_stop != stop_words.end())
-                    {
-                        next_tokenid = it_stop->second;
-                        stop_word = true;
-                        found = true;
-                    }
-                }
+//                else
+//                {
+//                    // check if it's a stop word
+//                    it_stop = stop_words.find(next_token);
+//                    if (it_stop != stop_words.end())
+//                    {
+//                        next_tokenid = it_stop->second;
+//                        stop_word = true;
+//                        found = true;
+//                    }
+//                }
                 if (found)
                 {
                     // we have a valid ngram!  update the counts
@@ -341,8 +310,7 @@ struct OrderByDescendingSecondComponent {
 };
 
 
-void Vocab::update(uint32_t keep, uint32_t min_count, stop_t & stop_words,
-    std::map<uint32_t, std::string> & stop_id2word)
+void Vocab::update(uint32_t keep, uint32_t min_count)
 {
     if (max_ngram == 0)
     {
@@ -407,6 +375,7 @@ void Vocab::update(uint32_t keep, uint32_t min_count, stop_t & stop_words,
                 uint32_t first_id, second_id;
                 u64_to_u32(it->first, first_id, second_id);
                 std::string ngram = id2word[first_id];
+                /*
                 if (second_id > ntokens_vocab)
                 {
                     denom = unigrams[second_id - stop_offset];
@@ -416,7 +385,9 @@ void Vocab::update(uint32_t keep, uint32_t min_count, stop_t & stop_words,
                 {
                     denom = unigrams[second_id];
                     ngram += "_" + id2word[second_id];
-                }
+                } */
+                denom = unigrams[second_id];
+                ngram += "_" + id2word[second_id];
                 denom *= unigrams[first_id];
                 denom = (it->second - min_count) / sqrt(denom);
 
@@ -452,11 +423,11 @@ void Vocab::update(uint32_t keep, uint32_t min_count, stop_t & stop_words,
     unigrams_map.clear();
     unigrams.clear();
     bigrams.clear();
-    unigrams.resize(id2word.size() + stop_words.size(), 0);
-    stop_t::iterator it;
-    uint32_t min_stop_id = -1;
-    for (it = stop_words.begin(); it != stop_words.end(); ++it)
-        min_stop_id = std::min(min_stop_id, it->second);
-    stop_offset = min_stop_id - id2word.size();
+    unigrams.resize(id2word.size(), 0);
+//    stop_t::iterator it;
+//    uint32_t min_stop_id = -1;
+//    for (it = stop_words.begin(); it != stop_words.end(); ++it)
+//        min_stop_id = std::min(min_stop_id, it->second);
+//    stop_offset = min_stop_id - id2word.size();
     max_ngram = vocab.size();
 }
