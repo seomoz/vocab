@@ -119,6 +119,44 @@ cdef class Vocabulary:
     def __len__(self):
         return self._vocabptr.size()
 
+    def create(self, corpus, ngram_counts, keep_unigram_stopwords=True):
+        """
+        Create the vocabulary from the given corpus
+
+        corpus: an iterable that produces documents (as strings) from a corpus
+        ngram_counts: a list of tuples, one per ngram order that specifies the
+        maximum number of tokens to keep and the minimum count to keep
+        keep_unigram_stopwrds: if True (default), keep the unigrams that are
+        stopwords. If False, remove the stopwords from the vocabulary
+        """
+        for nkeep, min_count in ngram_counts:
+            for doc in corpus:
+                self._accumulate_counts(doc)
+            self._update(nkeep, min_count)
+            # if corpus is an iterator of a file, we need to seek to the
+            # beginning in order to iterate over it again
+            if hasattr(corpus, 'seek'):
+                corpus.seek(0)
+        self._vocabptr.save(keep_unigram_stopwords)
+
+    def _accumulate_counts(self, doc):
+        """
+        Accumulate the n-gram counts for the document. This method tokenizes the
+        input string with the tokenizer that was specified when the Vocabulary
+        instance was created.
+        """
+        cdef vector[string] tokens = self._tokenizer(doc)
+        self._vocabptr.accumulate(tokens)
+
+    def _update(self, keep=100000, min_count=1):
+        """
+        Update the vocabulary with the accumulated counts
+
+        keep: the number of new tokens to add to the vocabulary
+        min_count: the minimum count to keep
+        """
+        self._vocabptr.update(keep, min_count)
+
     def word2id(self, string w):
         """
         Given a token string, return its id
@@ -146,17 +184,7 @@ cdef class Vocabulary:
         Write the vocabulary to a file
         """
         with GzipFile(fname, 'w') as fout:
-
-            # then the n-grams
             for k in xrange(self._vocabptr.size()):
-                t = self.id2word(k)
-                # don't keep n-grams that end in a stop word
-                # the n-gram generation code has already taken care of n-grams
-                # that start with a stopword
-                if '_' in t:
-                    tokens = t.split('_')
-                    if STOP_WORDS.find(tokens[-1]) != STOP_WORDS.end():
-                        continue
                 fout.write(self.id2word(k))
                 fout.write('\t')
                 fout.write(str(self._vocabptr.get_id2count(k)))
@@ -205,31 +233,6 @@ cdef class Vocabulary:
         """
         idxs = np.random.randint(0, len(self._table), num)
         return self._table[idxs]
-
-    def accumulate(self, doc):
-        """
-        Accumulate the n-gram counts for the document. This method tokenizes the
-        input string with the tokenizer that was specified when the Vocabulary
-        instance was created.
-        """
-        cdef vector[string] tokens = self._tokenizer(doc)
-        self._vocabptr.accumulate(tokens)
-
-    def accumulate_tokens(self, tokens):
-        """
-        Accumulate the n-gram counts for the list of tokens (this is useful
-        when the document has already been tokenized.)
-        """
-        self._vocabptr.accumulate(tokens)
-
-    def update(self, keep=100000, min_count=1):
-        """
-        Update the vocabulary with the accumulated counts
-
-        keep: the number of new tokens to add to the vocabulary
-        min_count: the minimum count to keep
-        """
-        self._vocabptr.update(keep, min_count)
 
     @classmethod
     def load(cls, fname, tokenizer=alpha_tokenize,

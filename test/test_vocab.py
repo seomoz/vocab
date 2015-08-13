@@ -122,8 +122,9 @@ class TestVocabularyUpdate(unittest.TestCase):
         ]
 
         self.expected_unigrams = ['new', 'york', 'city', 'brooklyn',
-                                  'bought', 'phone', 'computer']
-        self.expected_bigrams = ['new_york', 'bought_a', 'york_city']
+                                  'bought', 'phone', 'computer',
+                                  'he', 'a', 'is', 'in']
+        self.expected_bigrams = ['new_york', 'york_city']
         self.expected_trigrams = ['new_york_city', 'bought_a_new']
 
     def test_update_unigrams(self):
@@ -131,10 +132,7 @@ class TestVocabularyUpdate(unittest.TestCase):
         We should be able to update corpus with unigram counts
         """
         v = vocab.Vocabulary()
-        for doc in self.corpus:
-            v.accumulate(doc)
-        v.update()
-
+        v.create(self.corpus, [(1000, 1)])
         actual = sorted(
             [v.id2word(k) for k in xrange(len(self.expected_unigrams))])
         self.assertEqual(actual, sorted(self.expected_unigrams))
@@ -148,10 +146,7 @@ class TestVocabularyUpdate(unittest.TestCase):
         """
         # learn up to tri-grams
         v = vocab.Vocabulary()
-        for nkeep, min_count in [(1000, 1), (3, 1), (2, 2)]:
-            for doc in self.corpus:
-                v.accumulate(doc)
-            v.update(nkeep, min_count)
+        v.create(self.corpus, [(1000, 1), (3, 1), (2, 2)])
 
         tokenid = 0
         for expected in [self.expected_unigrams,
@@ -171,15 +166,10 @@ class TestVocabularyUpdate(unittest.TestCase):
         """
         We should handle empty or short docs gracefully
         """
-        for k in xrange(3):
-            v = vocab.Vocabulary()
-            # for i in xrange(k):
-            #     for doc in self.corpus:
-            #         v.accumulate(doc)
-            #     v.update()
-            v.accumulate('')
-            v.accumulate(' '.join(['computer'] * (k - 1)))
-            v.update()
+        v = vocab.Vocabulary()
+        v.create(['computer', '', 'computer computer',
+                  'computer computer computer'],
+                 [(1000, 1), (3, 1), (1, 1)])
         # if we made it to here with out raising an error or seg faulting
         # the test passes
         self.assertTrue(True)
