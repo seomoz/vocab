@@ -249,20 +249,18 @@ cdef class Vocabulary:
         power: power used in filling the lookup table
         """
         with GzipFile(fname, 'r') as fin:
-            vocab = [{}]
+            vocab = []
             counts = []
-            n = 0
             wordid = 0
             for line in fin:
                 line = line.rstrip('\n')
                 linearr = line.split('\t')
                 token = linearr[0]
                 nunderscore = len(re.findall('_', token))
-                if nunderscore > n:
-                    assert(n == nunderscore - 1)
-                    n += 1
+                num = nunderscore - len(vocab) + 1
+                for i in xrange(num):
                     vocab.append({})
-                vocab[-1][token] = wordid
+                vocab[nunderscore][token] = wordid
                 if len(linearr) > 1:
                     counts.append(int(linearr[1]))
                 wordid += 1

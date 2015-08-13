@@ -108,10 +108,34 @@ class TestVocabulary(unittest.TestCase):
             self.assertEqual(
                 self.vocab.word2id(token), vocab_loaded.word2id(token))
 
+    def test_load_noorder(self):
+        """
+        We should be able load a vocabulary file that has tokens that are not
+        in ngram order
+        """
+        from gzip import GzipFile
+        import tempfile
+        (fid, fname) = tempfile.mkstemp()
 
-class TestVocabularyUpdate(unittest.TestCase):
+        tokens = [('a_b', 4), ('a_b_c', 7), ('a', 10), ('b', 3), ('d_e', 4),
+                  ('d_e_f', 2), ('b_c', 4)]
+
+        with GzipFile(fname, 'w') as f:
+            for token, count in tokens:
+                f.write(token)
+                f.write('\t')
+                f.write(str(count))
+                f.write('\n')
+        v = vocab.Vocabulary.load(fname)
+        self.assertEqual(len(v), len(tokens))
+        for i in xrange(len(v)):
+            self.assertEqual(v.id2word(i), tokens[i][0])
+            self.assertEqual(v.counts[i], tokens[i][1])
+
+
+class TestVocabularyCreate(unittest.TestCase):
     """
-    Test the updating functionality of the vocabulary
+    Test creating the vocabulary
     """
     def setUp(self):
         self.corpus = [
@@ -127,7 +151,7 @@ class TestVocabularyUpdate(unittest.TestCase):
         self.expected_bigrams = ['new_york', 'york_city']
         self.expected_trigrams = ['new_york_city', 'bought_a_new']
 
-    def test_update_unigrams(self):
+    def test_unigrams(self):
         """
         We should be able to update corpus with unigram counts
         """
@@ -140,7 +164,7 @@ class TestVocabularyUpdate(unittest.TestCase):
         self.assertRaises(IndexError, v.id2word,
                           len(self.expected_unigrams))
 
-    def test_update_ngrams(self):
+    def test_ngrams(self):
         """
         The Vocabulary should find n-grams
         """
