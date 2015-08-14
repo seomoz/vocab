@@ -36,7 +36,7 @@ class Vocab
 
         // for creating the vocab
         void accumulate(std::vector<std::string> &);
-        void update(uint32_t, uint32_t);
+        void update(uint32_t, uint32_t, uint32_t);
           // save is called when the caller is done creating the vocabulary
         void save(bool keep_unigram_stopwords);
 

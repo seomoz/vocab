@@ -156,7 +156,7 @@ class TestVocabularyCreate(unittest.TestCase):
         We should be able to update corpus with unigram counts
         """
         v = vocab.Vocabulary()
-        v.create(self.corpus, [(1000, 1)])
+        v.create(self.corpus, [(1000, 1, 1)])
         actual = sorted(
             [v.id2word(k) for k in xrange(len(self.expected_unigrams))])
         self.assertEqual(actual, sorted(self.expected_unigrams))
@@ -170,7 +170,7 @@ class TestVocabularyCreate(unittest.TestCase):
         """
         # learn up to tri-grams
         v = vocab.Vocabulary()
-        v.create(self.corpus, [(1000, 1), (3, 1), (2, 2)])
+        v.create(self.corpus, [(1000, 1, 1), (3, 1, 1), (2, 2, 1)])
 
         tokenid = 0
         for expected in [self.expected_unigrams,
@@ -193,7 +193,7 @@ class TestVocabularyCreate(unittest.TestCase):
         v = vocab.Vocabulary()
         v.create(['computer', '', 'computer computer',
                   'computer computer computer'],
-                 [(1000, 1), (3, 1), (1, 1)])
+                 [(1000, 1, 1), (3, 1, 1), (1, 1, 1)])
         # if we made it to here with out raising an error or seg faulting
         # the test passes
         self.assertTrue(True)
