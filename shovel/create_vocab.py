@@ -22,7 +22,7 @@ def ngrams(prefix):
     with BZ2File(prefix + 'corpus.bz2', 'r') as corpus:
         vocab = Vocabulary(build_table=False)
         vocab.create(corpus, [(75000, 350), (25000, 350), (10000, 350)])
-    vocab.save(prefix + 'vocab.gz')
+        vocab.save(prefix + 'vocab.gz')
 
 
 @task

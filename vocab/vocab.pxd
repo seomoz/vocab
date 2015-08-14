@@ -23,14 +23,15 @@ cdef extern from "cvocab.cc":
         void save(bool keep_unigram_stopwords)
         uint32_t get_word2id(string)
         string get_id2word(size_t)
-        uint32_t get_swid2count(size_t)
         uint32_t get_id2count(size_t)
         uint32_t size()
+        void add_ngram(string, int)
 
 
 cdef class Vocabulary:
     cdef Vocab *_vocabptr
     cdef np.ndarray _table
     cdef object _tokenizer
-    cpdef public np.ndarray counts
+    cdef object _lookup_table
+    cdef public object counts
 

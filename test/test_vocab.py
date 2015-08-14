@@ -99,7 +99,7 @@ class TestVocabulary(unittest.TestCase):
 
         (fid, fname) = tempfile.mkstemp()
         self.vocab.save(fname)
-        vocab_loaded = vocab.Vocabulary.load(fname, build_table=False)
+        vocab_loaded = vocab.Vocabulary.load(fname)
 
         self.assertEqual(len(self.vocab), len(vocab_loaded))
         for k in xrange(len(self.vocab)):
@@ -197,6 +197,17 @@ class TestVocabularyCreate(unittest.TestCase):
         # if we made it to here with out raising an error or seg faulting
         # the test passes
         self.assertTrue(True)
+
+    def test_update_counts(self):
+        ngrams = ['new', 'bought', 'phone', 'is', 'in', 'a',
+                  'new_york', 'new_york_city']
+        v = vocab.Vocabulary()
+        v.add_ngrams(ngrams)
+        self.assertEqual(len(v), len(ngrams))
+        self.assertEqual(len(ngrams)*[0], v.counts)
+        v.update_counts(self.corpus)
+        expected_counts = [2, 2, 1, 2, 2, 2, 1, 2]
+        self.assertEqual(expected_counts, v.counts)
 
 
 if __name__ == "__main__":

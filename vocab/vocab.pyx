@@ -43,49 +43,21 @@ cdef set[string] STOP_WORDS
 load_stopwords(STOP_WORDS)
 
 
-cdef class Vocabulary:
-    """
-    Class for creating, saving, and loading a vocabulary
-    """
-    def __init__(self, vocab=None, tokenizer=alpha_tokenize, counts=None,
-                 build_table=True, table_size=DEFAULT_TABLE_SIZE,
-                 power=DEFAULT_POWER):
-        self._tokenizer = tokenizer
+class IndexLookupTable(object):
+    def __init__(self, counts, table_size, power):
+        self._table_size = table_size
+        self._power = power
+        self._table = IndexLookupTable._build(counts, table_size, power) \
+            if counts else None
 
-    def __cinit__(self, vocab=None, tokenizer=None,
-                  counts=None, build_table=True,
-                  table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
-        """
-        vocab: vocabulary
-        tokenizer: a tokenizer that splits strings into individual tokens
-        counts: word counts, used if building the index lookup table
-        build_table: if True, build the index lookup table that word2gauss
-        uses for negative sampling
-        table_size: index lookup table size
-        power: power used in building index lookup table
-        """
-        cdef vocab_t v
-        v.clear()
+    def update_table(self, counts):
+        """ Update the table with new counts"""
+        # just build a new table with the counts
+        self._table = IndexLookupTable._build(counts,
+                                              self._table_size, self._power)
 
-        cdef vocab_ngram_t ngram
-
-        if vocab is not None:
-            # make the unordered_map to pass into constructor
-            for tokens in vocab:
-                ngram.clear()
-                for token, tokenid in tokens.iteritems():
-                    ngram[token] = tokenid
-                v.push_back(ngram)
-
-        self._vocabptr = new Vocab(v, STOP_WORDS)
-        self.counts = np.array(counts, dtype=np.uint32) if counts else None
-
-        if build_table and counts:
-            self._table = self._build_table(table_size, power)
-        else:
-            self._table = None
-
-    def _build_table(self, table_size, power):
+    @staticmethod
+    def _build(counts, table_size, power):
         """
         Create a table using the vocabulary tokens counts, which can be used
         for drawing random words in negative sampling routines (useful for
@@ -97,21 +69,67 @@ cdef class Vocabulary:
         """
         table = np.zeros(table_size, dtype=np.uint32)
         # compute sum of all power (Z in paper)
-        train_words_pow = float(sum((count**power for count in self.counts)))
+        train_words_pow = float(sum((count**power for count in counts)))
+        if train_words_pow == 0.0:
+            return None
+
         # go through the whole table and fill it up with the word indexes
         # proportional to a word's count**power
         widx = 0
         # normalize count^0.75 by Z
-        d1 = self.counts[widx]**power / train_words_pow
-        vocab_size = len(self.counts)
+        d1 = counts[widx]**power / train_words_pow
+        vocab_size = len(counts)
         for tidx in xrange(table_size):
             table[tidx] = widx
             if 1.0 * tidx / table_size > d1:
                 widx += 1
-                d1 += self.counts[widx]**power / train_words_pow
+                d1 += counts[widx]**power / train_words_pow
             if widx >= vocab_size:
                 widx = vocab_size - 1
         return table
+
+    def random_id(self):
+        return self._table[np.random.randint(0, len(self._table))]
+
+    def random_ids(self, num):
+        idxs = np.random.randint(0, len(self._table), num)
+        return self._table[idxs]
+
+
+cdef class Vocabulary:
+    """
+    Class for creating, saving, and loading a vocabulary
+    """
+    def __init__(self, vocab=None, tokenizer=alpha_tokenize, counts=None,
+                 table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
+        self._tokenizer = tokenizer
+        self.counts = counts
+        self._lookup_table = IndexLookupTable(self.counts, table_size, power)
+
+    def __cinit__(self, vocab=None, tokenizer=None,
+                  counts=None,
+                  table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
+        """
+        vocab: vocabulary
+        tokenizer: a tokenizer that splits strings into individual tokens
+        counts: word counts
+        table_size: index lookup table size
+        power: power used in building index lookup table
+        """
+        cdef vocab_t v
+        v.clear()
+
+        cdef vocab_ngram_t ngram
+
+        if vocab:
+            # make the unordered_map to pass into constructor
+            for tokens in vocab:
+                ngram.clear()
+                for token, tokenid in tokens.iteritems():
+                    ngram[token] = tokenid
+                v.push_back(ngram)
+
+        self._vocabptr = new Vocab(v, STOP_WORDS)
 
     def __dealloc__(self):
         del self._vocabptr
@@ -131,31 +149,40 @@ cdef class Vocabulary:
         """
         for nkeep, min_count in ngram_counts:
             for doc in corpus:
-                self._accumulate_counts(doc)
-            self._update(nkeep, min_count)
-            # if corpus is an iterator of a file, we need to seek to the
+                self._vocabptr.accumulate(self._tokenizer(doc))
+            self._vocabptr.update(nkeep, min_count)
+            # if corpus is a file iterator, we need to seek to the
             # beginning in order to iterate over it again
             if hasattr(corpus, 'seek'):
                 corpus.seek(0)
         self._vocabptr.save(keep_unigram_stopwords)
+        vlen = self._vocabptr.size()
+        self.counts = [self._vocabptr.get_id2count(k) for k in xrange(vlen)]
+        self._lookup_table.update_table(self.counts)
 
-    def _accumulate_counts(self, doc):
+    def add_ngrams(self, ngrams):
         """
-        Accumulate the n-gram counts for the document. This method tokenizes the
-        input string with the tokenizer that was specified when the Vocabulary
-        instance was created.
-        """
-        cdef vector[string] tokens = self._tokenizer(doc)
-        self._vocabptr.accumulate(tokens)
+        Add the list of ngrams to the vocabulary. This is meant for when we
+        want to update the vocabulary with new items.
 
-    def _update(self, keep=100000, min_count=1):
+        ngram: iterable of ngrams to add
         """
-        Update the vocabulary with the accumulated counts
+        if not self.counts:
+            self.counts = []
+        for ngram in ngrams:
+            n = ngram.count('_')
+            self._vocabptr.add_ngram(ngram, n)
+            self.counts.append(0)
 
-        keep: the number of new tokens to add to the vocabulary
-        min_count: the minimum count to keep
+    def update_counts(self, corpus):
         """
-        self._vocabptr.update(keep, min_count)
+        Update the counts of the current vocabulary with the given corpus
+        """
+        for doc in corpus:
+            ids = self.tokenize_ids(doc, remove_oov=True)
+            for id in ids:
+                self.counts[id] += 1
+        self._lookup_table.update_table(self.counts)
 
     def word2id(self, string w):
         """
@@ -222,7 +249,7 @@ cdef class Vocabulary:
         """
         Returns a random id from the vocabulary, using the index lookup table
         """
-        return self._table[np.random.randint(0, len(self._table))]
+        return self._lookup_table.random_id()
 
     def random_ids(self, num):
         """
@@ -231,12 +258,10 @@ cdef class Vocabulary:
         loaded.
         num: number of ids to return
         """
-        idxs = np.random.randint(0, len(self._table), num)
-        return self._table[idxs]
+        return self._lookup_table.random_ids(num)
 
     @classmethod
     def load(cls, fname, tokenizer=alpha_tokenize,
-             build_table=True,
              table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         """
         Create a Vocabulary instance, loading data from a file
@@ -256,15 +281,17 @@ cdef class Vocabulary:
                 line = line.rstrip('\n')
                 linearr = line.split('\t')
                 token = linearr[0]
-                nunderscore = len(re.findall('_', token))
-                num = nunderscore - len(vocab) + 1
+                # number of underscores tells us what kind of ngram this is
+                # (and index into vocab list)
+                idx = token.count('_')
+                # num: number of {} to add to list
+                num = idx - len(vocab) + 1
                 for i in xrange(num):
                     vocab.append({})
-                vocab[nunderscore][token] = wordid
+                vocab[idx][token] = wordid
                 if len(linearr) > 1:
                     counts.append(int(linearr[1]))
                 wordid += 1
 
         return cls(vocab=vocab, tokenizer=tokenizer, counts=counts,
-                   build_table=build_table,
                    table_size=table_size, power=power)

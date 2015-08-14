@@ -33,6 +33,13 @@ class Vocab
         Vocab(vocab_t vocab, stopwords_t stopwords);
         ~Vocab();
 
+
+        // for creating the vocab
+        void accumulate(std::vector<std::string> &);
+        void update(uint32_t, uint32_t);
+          // save is called when the caller is done creating the vocabulary
+        void save(bool keep_unigram_stopwords);
+
         // take a doc as a list of tokens and group the n-grams
         // aggressively
         void group_ngrams(std::vector<std::string> & tokens,
@@ -41,17 +48,12 @@ class Vocab
         uint32_t get_word2id(std::string & token);
         std::string get_id2word(std::size_t);
         uint32_t get_id2count(std::size_t);
-        uint32_t get_swid2count(std::size_t);
-
-        // for updating the vocab
-        void accumulate(std::vector<std::string> &);
-        void update(uint32_t, uint32_t);
 
         // total words in the vocab
         uint32_t size(void);
 
-        // save is called when the caller is done creating the vocabulary
-        void save(bool keep_unigram_stopwords);
+        void add_ngram(std::string s, int order);
+
 
     private:
         vocab_t vocab;
@@ -104,6 +106,21 @@ uint32_t Vocab::size(void)
     return id2word.size();
 }
 
+void Vocab::add_ngram(std::string s, int order)
+{
+    if (order >= vocab.size())
+    {
+        vocab_ngram_t v;
+        v.clear();
+        vocab.push_back(v);
+    }
+    uint32_t id = id2word.size();
+    vocab[order][s] = id;
+    id2word.push_back(s);
+    id2count.push_back(0);
+    max_ngram = vocab.size();
+}
+
 void Vocab::populate_id2word(uint32_t total_words)
 {
     id2word.resize(total_words);
@@ -119,7 +136,6 @@ void Vocab::populate_id2word(uint32_t total_words)
         }
     }
 }
-
 
 void Vocab::group_ngrams(std::vector<std::string> & tokens,
             std::vector<std::string> & ret, bool remove_oov)
@@ -192,7 +208,7 @@ void Vocab::group_ngrams(std::vector<std::string> & tokens,
 uint32_t Vocab::get_word2id(std::string & word)
 {
     // get the token id
-    for (std::size_t k = 0; k < max_ngram; ++k)
+    for (std::size_t k = 0; k < vocab.size(); ++k)
     {
         vocab_ngram_t::iterator got = vocab[k].find(word);
         if (got != vocab[k].end())
@@ -406,8 +422,8 @@ void Vocab::update(uint32_t keep, uint32_t min_count)
 // Hardens the vocabulary; once save is called, no higher ngrams can be
 // computed.
 // Keeping stopwords in the vocabulary may not be desirable for some
-// applications, so the keep_unigram_stopwords flags allows for control by the
-// caller.
+// applications, so the keep_unigram_stopwords flag allows the caller to
+// control this behavior
 void Vocab::save(bool keep_unigram_stopwords)
 {
     uint32_t next_id;
