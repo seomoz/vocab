@@ -317,7 +317,7 @@ struct OrderByDescendingSecondComponent {
 };
 
 
-void Vocab::update(uint32_t keep, uint32_t min_count)
+void Vocab::update(uint32_t num_to_keep, uint32_t min_count, uint32_t delta)
 {
     if (max_ngram == 0)
     {
@@ -336,7 +336,7 @@ void Vocab::update(uint32_t keep, uint32_t min_count)
                 words_kept += 1;
                 chosen.push_back(*it);
                 std::push_heap(chosen.begin(), chosen.end(), comparator);
-                if (words_kept > keep) {
+                if (words_kept > num_to_keep) {
                     std::pop_heap(chosen.begin(), chosen.end(), comparator);
                     chosen.pop_back();
                 }
@@ -365,6 +365,13 @@ void Vocab::update(uint32_t keep, uint32_t min_count)
         // so p(x, y) / p(x) / p(y) = count(x, y) / count(x) / count(y) * fac
         // where fac = total unigrams **2 / total bigrams and is the same
         // for each word so we can ignore it
+
+        // See the following (equation 6):
+        // Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg Corrado, and
+        // Jeffrey Dean. Distributed Representations of Words and Phrases and
+        // their Compositionality. In Proceedings of NIPS, 2013.
+        // delta = discounting coefficient, used to prevent too many phrases
+        // consisting of very infrequent words to be formed.
         ngram_pmi_t chosen;
         OrderByDescendingSecondComponent<ngram_count_t, double> comparator;
         std::make_heap(chosen.begin(), chosen.end(), comparator);
@@ -378,17 +385,19 @@ void Vocab::update(uint32_t keep, uint32_t min_count)
             {
                 uint32_t first_id, second_id;
                 u64_to_u32(it->first, first_id, second_id);
+
                 std::string ngram = id2word[first_id] + "_" +
                     id2word[second_id];
+
                 double denom = unigrams[first_id] * unigrams[second_id];
-                denom = (it->second - min_count) / sqrt(denom);
+                double pmi = (it->second - delta) / sqrt(denom);
 
                 // push onto heap and pop smallest
                 words_kept += 1;
                 chosen.push_back(std::make_pair(
-                    std::make_pair(ngram, it->second), denom));
+                    std::make_pair(ngram, it->second), pmi));
                 std::push_heap(chosen.begin(), chosen.end(), comparator);
-                if (words_kept > keep)
+                if (words_kept > num_to_keep)
                 {
                     std::pop_heap(chosen.begin(), chosen.end(), comparator);
                     chosen.pop_back();

@@ -19,7 +19,7 @@ cdef extern from "cvocab.cc":
         Vocab() except +
         void group_ngrams(vector[string] &, vector[string] &, bool)
         void accumulate(vector[string] &)
-        void update(uint32_t, uint32_t)
+        void update(uint32_t, uint32_t, uint32_t)
         void save(bool keep_unigram_stopwords)
         uint32_t get_word2id(string)
         string get_id2word(size_t)

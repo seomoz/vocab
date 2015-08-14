@@ -143,14 +143,16 @@ cdef class Vocabulary:
 
         corpus: an iterable that produces documents (as strings) from a corpus
         ngram_counts: a list of tuples, one per ngram order that specifies the
-        maximum number of tokens to keep and the minimum count to keep
+        maximum number of tokens to keep, the minimum count required
+        for a token, and a discounting
+
         keep_unigram_stopwrds: if True (default), keep the unigrams that are
         stopwords. If False, remove the stopwords from the vocabulary
         """
-        for nkeep, min_count in ngram_counts:
+        for nkeep, min_count, delta in ngram_counts:
             for doc in corpus:
                 self._vocabptr.accumulate(self._tokenizer(doc))
-            self._vocabptr.update(nkeep, min_count)
+            self._vocabptr.update(nkeep, min_count, delta)
             # if corpus is a file iterator, we need to seek to the
             # beginning in order to iterate over it again
             if hasattr(corpus, 'seek'):
@@ -254,8 +256,8 @@ cdef class Vocabulary:
     def random_ids(self, num):
         """
         Returns an array of random ids from the vocabulary, using the index
-        lookup table, which needs to have been created when the vocabulary was
-        loaded.
+        lookup table
+
         num: number of ids to return
         """
         return self._lookup_table.random_ids(num)
@@ -268,10 +270,9 @@ cdef class Vocabulary:
 
         fname: name of file to load
         tokenizer: tokenizer to use with this Vocabulary instance
-        build_table: if True, build the index lookup table, which is used in
-        negative sampling in word2gauss
-        table_size: size of lookup table
-        power: power used in filling the lookup table
+        table_size: size of the index lookup table (which is used in negative
+        sampling in word2gauss)
+        power: power used in filling the index lookup table
         """
         with GzipFile(fname, 'r') as fin:
             vocab = []
