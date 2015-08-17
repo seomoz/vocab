@@ -199,14 +199,14 @@ class TestVocabularyCreate(unittest.TestCase):
         self.assertTrue(True)
 
     def test_update_counts(self):
-        ngrams = ['new', 'bought', 'phone', 'is', 'in', 'a',
-                  'new_york', 'new_york_city']
+        ngrams = ['new_york_city', 'new', 'bought', 'phone', 'is', 'in', 'a',
+                  'new_york']
         v = vocab.Vocabulary()
         v.add_ngrams(ngrams)
         self.assertEqual(len(v), len(ngrams))
         self.assertEqual(len(ngrams)*[0], v.counts)
         v.update_counts(self.corpus)
-        expected_counts = [2, 2, 1, 2, 2, 2, 1, 2]
+        expected_counts = [2, 2, 2, 1, 2, 2, 2, 1]
         self.assertEqual(expected_counts, v.counts)
 
 

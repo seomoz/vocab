@@ -25,7 +25,7 @@ cdef extern from "cvocab.cc":
         string get_id2word(size_t)
         uint32_t get_id2count(size_t)
         uint32_t size()
-        void add_ngram(string, int)
+        void add_ngram(string, size_t)
 
 
 cdef class Vocabulary:

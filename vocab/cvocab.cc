@@ -52,7 +52,7 @@ class Vocab
         // total words in the vocab
         uint32_t size(void);
 
-        void add_ngram(std::string s, int order);
+        void add_ngram(std::string s, size_t order);
 
 
     private:
@@ -106,13 +106,18 @@ uint32_t Vocab::size(void)
     return id2word.size();
 }
 
-void Vocab::add_ngram(std::string s, int order)
+void Vocab::add_ngram(std::string s, size_t order)
 {
     if (order >= vocab.size())
     {
-        vocab_ngram_t v;
-        v.clear();
-        vocab.push_back(v);
+        // ngrams could come out of order, so make sure vocab is large enough
+        size_t num = order - vocab.size() + 1;
+        for (size_t i = 0; i < num; ++i)
+        {
+            vocab_ngram_t v;
+            v.clear();
+            vocab.push_back(v);
+        }
     }
     uint32_t id = id2word.size();
     vocab[order][s] = id;
