@@ -358,15 +358,15 @@ void Vocab::update(uint32_t num_to_keep, uint32_t min_count, uint32_t delta)
     else
     {
         // update the higher order ngrams
-        // use a PMI (pointwise mutual information) approach
+        // PMI (pointwise mutual information) approach:
         // want to keep ones with the highest p(x, y) / (p(x) * p(y))
         // p(x) = count(x) / total unigrams
         // p(x, y) = count(x, y) / total bigrams
-        // so p(x, y) / p(x) / p(y) = count(x, y) / count(x) / count(y) * fac
+        // so p(x, y) / (p(x) * p(y)) = count(x, y) / (count(x) * count(y)) * fac
         // where fac = total unigrams **2 / total bigrams and is the same
         // for each word so we can ignore it
-
-        // See the following (equation 6):
+        // We use this approach with one modification that is described here:
+        // Equation 6 from:
         // Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg Corrado, and
         // Jeffrey Dean. Distributed Representations of Words and Phrases and
         // their Compositionality. In Proceedings of NIPS, 2013.
@@ -390,7 +390,7 @@ void Vocab::update(uint32_t num_to_keep, uint32_t min_count, uint32_t delta)
                     id2word[second_id];
 
                 double denom = unigrams[first_id] * unigrams[second_id];
-                double pmi = (it->second - delta) / sqrt(denom);
+                double pmi = (it->second - delta) / denom;
 
                 // push onto heap and pop smallest
                 words_kept += 1;
