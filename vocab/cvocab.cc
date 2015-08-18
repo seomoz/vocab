@@ -111,12 +111,10 @@ void Vocab::add_ngram(std::string s, size_t order)
     if (order >= vocab.size())
     {
         // ngrams could come out of order, so make sure vocab is large enough
-        size_t num = order - vocab.size() + 1;
-        for (size_t i = 0; i < num; ++i)
+        int num = order - vocab.size() + 1;
+        for (int i = 0; i < num; ++i)
         {
-            vocab_ngram_t v;
-            v.clear();
-            vocab.push_back(v);
+            vocab.push_back(vocab_ngram_t());
         }
     }
     uint32_t id = id2word.size();
@@ -349,9 +347,7 @@ void Vocab::update(uint32_t num_to_keep, uint32_t min_count, uint32_t delta)
         }
 
         // now that we have the chosen unigrams we can set the vocab
-        vocab_ngram_t v;
-        v.clear();
-        vocab.push_back(v);
+        vocab.push_back(vocab_ngram_t());
 
         for (std::size_t k = 0; k < chosen.size(); ++k)
         {
@@ -411,9 +407,7 @@ void Vocab::update(uint32_t num_to_keep, uint32_t min_count, uint32_t delta)
         }
 
         // now add the bigrams to the vocab
-        vocab_ngram_t v;
-        v.clear();
-        vocab.push_back(v);
+        vocab.push_back(vocab_ngram_t());
 
         for (ngram_pmi_t::iterator it_chosen = chosen.begin();
              it_chosen != chosen.end(); ++it_chosen)

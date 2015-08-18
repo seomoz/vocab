@@ -204,10 +204,12 @@ class TestVocabularyCreate(unittest.TestCase):
         v = vocab.Vocabulary()
         v.add_ngrams(ngrams)
         self.assertEqual(len(v), len(ngrams))
-        self.assertEqual(len(ngrams)*[0], v.counts)
+        for i in xrange(v.counts.size):
+            self.assertEqual(v.counts[i], 0)
         v.update_counts(self.corpus)
         expected_counts = [2, 2, 2, 1, 2, 2, 2, 1]
-        self.assertEqual(expected_counts, v.counts)
+        for i in xrange(v.counts.size):
+            self.assertEqual(v.counts[i], expected_counts[i])
 
 
 if __name__ == "__main__":

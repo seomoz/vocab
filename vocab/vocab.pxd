@@ -1,6 +1,6 @@
 
 from libcpp.vector cimport vector
-from libcpp.set cimport set
+from libcpp.set cimport set as cset
 from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 from libc.stdint cimport uint32_t
@@ -10,12 +10,12 @@ cimport numpy as np
 
 ctypedef unordered_map[string, uint32_t] vocab_ngram_t
 ctypedef vector[vocab_ngram_t] vocab_t
-ctypedef set[string] stopwords_t
+ctypedef cset[string] stopwords_t
 
 # wrapper for the C++ Vocab class
 cdef extern from "cvocab.cc":
     cdef cppclass Vocab:
-        Vocab(vocab_t, set[string]) except +
+        Vocab(vocab_t, stopwords_t) except +
         Vocab() except +
         void group_ngrams(vector[string] &, vector[string] &, bool)
         void accumulate(vector[string] &)
@@ -33,5 +33,4 @@ cdef class Vocabulary:
     cdef np.ndarray _table
     cdef object _tokenizer
     cdef object _lookup_table
-    cdef public object counts
-
+    cdef readonly np.ndarray counts
