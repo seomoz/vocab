@@ -113,8 +113,8 @@ cdef class Vocabulary:
         """
         vocab: vocabulary
         tokenizer: a tokenizer that splits strings into individual tokens
-        stopword_file: file containing stopwords. If unspecified, the default
-        stopwords file will be used
+        stopword_file: file containing stopwords. If None, the default
+        stopword list is used.
         counts: word counts
         table_size: index lookup table size
         power: power used in building index lookup table
@@ -152,7 +152,6 @@ cdef class Vocabulary:
         maximum number of tokens to keep, the minimum count required
         for a token, and a discounting coefficient (which prevents too many
         ngrams consisting of very infrequent words to be formed)
-
         keep_unigram_stopwords: if True (default), keep the unigrams that are
         stopwords. If False, remove the stopwords from the vocabulary
         """
