@@ -5,7 +5,7 @@ There are many applications where you might want to create a vocabulary.
 One example is Moz's word2gauss project (https://github.com/seomoz/word2gauss),
 which computes word embeddings for the vocabulary provided to it.
 
-This repo, vocab, will allow you to generate and use a vocabulary consisting of n-grams.
+This repo, vocab, allows you to generate and use a vocabulary consisting of n-grams.
 Vocabulary creation is done from the corpus that you provide.
 
 ## Dependencies
@@ -71,9 +71,14 @@ Later, you can create a Vocabulary instance by loading the file:
 ```python
 v = Vocabulary.load('my_vocab.gz')
 ```
-The load function has optional arguments to specifiy the tokenizer (tokenizer),
-the index lookup table size (table_size), and the power used to build the
-index lookup table (power). The load function assumes a gzipped-file.
+
+The load function assumes a gzipped-file.
+
+The load function has optional arguments to specifiy the tokenizer to be used 
+with this vocabulary instance (*tokenizer*), the index lookup table size (*table_size*), 
+and the power used to build the index lookup table (*power*). See the "Negative sampling"
+section below for a description of the index lookup table.
+
 
 ### Updating a vocabulary
 Once a vocabulary is created, you can add n-grams to it by calling *add_ngrams*.
@@ -110,9 +115,7 @@ The function *tokenize* will return the ngrams for the input string:
 ```python
 v.tokenize('The Statue of Liberty is in New York.')
 ```
-example output: ['the', 'statue_of_liberty', 'is', 'in', 'new_york']
-
-(in this example, the stopwords were retained as part of the vocabulary.)
+(example output: ['the', 'statue_of_liberty', 'is', 'in', 'new_york'])
 
 If the input contains tokens that are not part of the vocabulary, they will be 
 removed unless you set the optional parameter *remove_oov* to False. In this case,
@@ -131,7 +134,8 @@ len(v)
 Some word embedding algorithms use the idea of negative sampling, which is 
 described in the paper by Mikolov et al. cited above. To enable this, we build an index 
 lookup table from the vocabulary counts when you load a vocabulary from file or
-create a vocabulary.
+create a vocabulary. The size and power used for this table can be modified in the
+load function or the constructor.
 
 The functions, *random_id* and *random_ids* allow you to sample the vocabulary 
 from this table:
