@@ -45,11 +45,11 @@ below, the corpus is contained in a bzipped-file that contains one document per 
 
 ```python
 with BZ2File('my_corpus.bz2', 'r') as corpus:
-    vocab = Vocabulary()
-    vocab.create(corpus, [(75000, 350, 350), (25000, 350, 350), (10000, 350, 350)])
+    v = Vocabulary()
+    v.create(corpus, [(75000, 350, 350), (25000, 350, 350), (10000, 350, 350)])
 ```
 
-vocab.create also takes an optional flag, *keep_unigrams_stopwords* (True by
+The create function also takes an optional flag, *keep_unigrams_stopwords* (True by
 default) to allow you the option of not keeping stopwords in the unigram set.
 For word2gauss, we want to compute the embeddings for stopwords, but for an 
 application like topic modeling, you may want to exclude stopwords from the 
@@ -64,7 +64,7 @@ For example, "statue of liberty" is stored as "statue_of_liberty".
 ### Saving and loading a vocabulary
 You can save a vocabulary to gzipped file:
 ```python
-vocab.save('my_vocab.gz')
+v.save('my_vocab.gz')
 ```
 Later, you can create a Vocabulary instance by loading the file:
 
