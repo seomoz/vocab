@@ -19,21 +19,10 @@ def ngrams(prefix):
     """
     Find n-grams and make a vocabulary from the parsed corpus
     """
-    # (number of tokens to keep, min count) for each n-gram order
-    keep = [(75000, 350), (25000, 350), (10000, 350)]
-    vocab = Vocabulary(build_table=False)
-    for nkeep, min_count in keep:
-        ndocs = 0
-        with BZ2File(prefix + 'corpus.bz2', 'r') as corpus:
-            for doc in corpus:
-                vocab.accumulate(doc)
-                ndocs += 1
-                if ndocs % 10000 == 0:
-                    logger.info("Processed %s docs." % ndocs)
-        logger.info("Updating vocab!!")
-        vocab.update(nkeep, min_count)
-
-    vocab.save(prefix + 'vocab.gz')
+    with BZ2File(prefix + 'corpus.bz2', 'r') as corpus:
+        vocab = Vocabulary(build_table=False)
+        vocab.create(corpus, [(75000, 350), (25000, 350), (10000, 350)])
+        vocab.save(prefix + 'vocab.gz')
 
 
 @task

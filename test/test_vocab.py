@@ -99,7 +99,7 @@ class TestVocabulary(unittest.TestCase):
 
         (fid, fname) = tempfile.mkstemp()
         self.vocab.save(fname)
-        vocab_loaded = vocab.Vocabulary.load(fname, build_table=False)
+        vocab_loaded = vocab.Vocabulary.load(fname)
 
         self.assertEqual(len(self.vocab), len(vocab_loaded))
         for k in xrange(len(self.vocab)):
@@ -108,10 +108,34 @@ class TestVocabulary(unittest.TestCase):
             self.assertEqual(
                 self.vocab.word2id(token), vocab_loaded.word2id(token))
 
+    def test_load_noorder(self):
+        """
+        We should be able load a vocabulary file that has tokens that are not
+        in ngram order
+        """
+        from gzip import GzipFile
+        import tempfile
+        (fid, fname) = tempfile.mkstemp()
 
-class TestVocabularyUpdate(unittest.TestCase):
+        tokens = [('a_b', 4), ('a_b_c', 7), ('a', 10), ('b', 3), ('d_e', 4),
+                  ('d_e_f', 2), ('b_c', 4)]
+
+        with GzipFile(fname, 'w') as f:
+            for token, count in tokens:
+                f.write(token)
+                f.write('\t')
+                f.write(str(count))
+                f.write('\n')
+        v = vocab.Vocabulary.load(fname)
+        self.assertEqual(len(v), len(tokens))
+        for i in xrange(len(v)):
+            self.assertEqual(v.id2word(i), tokens[i][0])
+            self.assertEqual(v.counts[i], tokens[i][1])
+
+
+class TestVocabularyCreate(unittest.TestCase):
     """
-    Test the updating functionality of the vocabulary
+    Test creating the vocabulary
     """
     def setUp(self):
         self.corpus = [
@@ -122,19 +146,17 @@ class TestVocabularyUpdate(unittest.TestCase):
         ]
 
         self.expected_unigrams = ['new', 'york', 'city', 'brooklyn',
-                                  'bought', 'phone', 'computer']
-        self.expected_bigrams = ['new_york', 'bought_a', 'york_city']
+                                  'bought', 'phone', 'computer',
+                                  'he', 'a', 'is', 'in']
+        self.expected_bigrams = ['new_york', 'york_city']
         self.expected_trigrams = ['new_york_city', 'bought_a_new']
 
-    def test_update_unigrams(self):
+    def test_unigrams(self):
         """
         We should be able to update corpus with unigram counts
         """
         v = vocab.Vocabulary()
-        for doc in self.corpus:
-            v.accumulate(doc)
-        v.update()
-
+        v.create(self.corpus, [(1000, 1, 1)])
         actual = sorted(
             [v.id2word(k) for k in xrange(len(self.expected_unigrams))])
         self.assertEqual(actual, sorted(self.expected_unigrams))
@@ -142,16 +164,13 @@ class TestVocabularyUpdate(unittest.TestCase):
         self.assertRaises(IndexError, v.id2word,
                           len(self.expected_unigrams))
 
-    def test_update_ngrams(self):
+    def test_ngrams(self):
         """
         The Vocabulary should find n-grams
         """
         # learn up to tri-grams
         v = vocab.Vocabulary()
-        for nkeep, min_count in [(1000, 1), (3, 1), (2, 2)]:
-            for doc in self.corpus:
-                v.accumulate(doc)
-            v.update(nkeep, min_count)
+        v.create(self.corpus, [(1000, 1, 1), (3, 1, 1), (2, 2, 1)])
 
         tokenid = 0
         for expected in [self.expected_unigrams,
@@ -171,18 +190,26 @@ class TestVocabularyUpdate(unittest.TestCase):
         """
         We should handle empty or short docs gracefully
         """
-        for k in xrange(3):
-            v = vocab.Vocabulary()
-            # for i in xrange(k):
-            #     for doc in self.corpus:
-            #         v.accumulate(doc)
-            #     v.update()
-            v.accumulate('')
-            v.accumulate(' '.join(['computer'] * (k - 1)))
-            v.update()
+        v = vocab.Vocabulary()
+        v.create(['computer', '', 'computer computer',
+                  'computer computer computer'],
+                 [(1000, 1, 1), (3, 1, 1), (1, 1, 1)])
         # if we made it to here with out raising an error or seg faulting
         # the test passes
         self.assertTrue(True)
+
+    def test_update_counts(self):
+        ngrams = ['new_york_city', 'new', 'bought', 'phone', 'is', 'in', 'a',
+                  'new_york']
+        v = vocab.Vocabulary()
+        v.add_ngrams(ngrams)
+        self.assertEqual(len(v), len(ngrams))
+        for i in xrange(v.counts.size):
+            self.assertEqual(v.counts[i], 0)
+        v.update_counts(self.corpus)
+        expected_counts = [2, 2, 2, 1, 2, 2, 2, 1]
+        for i in xrange(v.counts.size):
+            self.assertEqual(v.counts[i], expected_counts[i])
 
 
 if __name__ == "__main__":

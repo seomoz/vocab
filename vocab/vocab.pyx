@@ -32,43 +32,90 @@ def alpha_tokenize(s):
     return [token for token in candidates if re_keep.search(token)]
 
 
-cdef class Stopwords:
-    def __cinit__(self):
-        # use a uint32_t for word ids
-
-        # Stop words may or may not be a part of the vocabulary (as unigrams),
-        # but we need to accumulate their counts for finding n-grams so they
-        # need an id.  So make them the largest uint32_t to avoid id conflicts
-        # with the non-vocab.
-        cdef uint32_t wordid = 4294967295
+def load_stopwords(stop_file=None):
+    stopwords = set()
+    if stop_file:
+        with file(stop_file, 'r') as f:
+            words = [line.rstrip() for line in f]
+    else:
         words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
-        self.word2id.clear()
-        self.id2word.clear()
-        for word in words:
-            self.min_id = wordid
-            self.word2id[word] = wordid
-            self.id2word[wordid] = word
-            wordid -= 1
+    for word in words:
+        stopwords.add(word)
+    return stopwords
+
+
+class IndexLookupTable(object):
+    def __init__(self, counts, table_size, power):
+        self._table_size = table_size
+        self._power = power
+        if counts is None:
+            self._table = None
+        else:
+            self._table = IndexLookupTable._build(counts, table_size, power)
+
+    def update_table(self, counts):
+        """ Update the table with new counts"""
+        # just build a new table with the counts
+        self._table = IndexLookupTable._build(counts,
+                                              self._table_size, self._power)
+
+    @staticmethod
+    def _build(counts, table_size, power):
+        """
+        Create a table using the vocabulary tokens counts, which can be used
+        for drawing random words in negative sampling routines (useful for
+        word2gauss.)
+
+        From gensim's make_table in word2vec.py
+        """
+        table = np.zeros(table_size, dtype=np.uint32)
+        # compute sum of all power (Z in paper)
+        train_words_pow = float(sum((count**power for count in counts)))
+        if train_words_pow == 0.0:
+            return None
+
+        # go through the whole table and fill it up with the word indexes
+        # proportional to a word's count**power
+        widx = 0
+        # normalize count^0.75 by Z
+        d1 = counts[widx]**power / train_words_pow
+        vocab_size = len(counts)
+        for tidx in xrange(table_size):
+            table[tidx] = widx
+            if 1.0 * tidx / table_size > d1:
+                widx += 1
+                d1 += counts[widx]**power / train_words_pow
+            if widx >= vocab_size:
+                widx = vocab_size - 1
+        return table
+
+    def random_id(self):
+        return self._table[np.random.randint(0, len(self._table))]
+
+    def random_ids(self, num):
+        idxs = np.random.randint(0, len(self._table), num)
+        return self._table[idxs]
 
 
 cdef class Vocabulary:
     """
     Class for creating, saving, and loading a vocabulary
     """
-    def __init__(self, vocab=None, tokenizer=alpha_tokenize, counts=None,
-                 build_table=True, table_size=DEFAULT_TABLE_SIZE,
-                 power=DEFAULT_POWER):
+    def __init__(self, vocab=None, tokenizer=alpha_tokenize,
+                 stopword_file=None, counts=None,
+                 table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         self._tokenizer = tokenizer
 
-    def __cinit__(self, vocab=None, tokenizer=None,
-                  counts=None, build_table=True,
+
+    def __cinit__(self, vocab=None, tokenizer=None, stopword_file = None,
+                  counts=None,
                   table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         """
         vocab: vocabulary
         tokenizer: a tokenizer that splits strings into individual tokens
-        counts: word counts, used if building the index lookup table
-        build_table: if True, build the index lookup table that word2gauss
-        uses for negative sampling
+        stopword_file: file containing stopwords. If None, the default
+        stopword list is used.
+        counts: word counts
         table_size: index lookup table size
         power: power used in building index lookup table
         """
@@ -77,7 +124,7 @@ cdef class Vocabulary:
 
         cdef vocab_ngram_t ngram
 
-        if vocab is not None:
+        if vocab:
             # make the unordered_map to pass into constructor
             for tokens in vocab:
                 ngram.clear()
@@ -85,48 +132,73 @@ cdef class Vocabulary:
                     ngram[token] = tokenid
                 v.push_back(ngram)
 
-        self._vocabptr = new Vocab(v)
+        stopwords = load_stopwords(stopword_file)
+        self._vocabptr = new Vocab(v, stopwords)
         self.counts = np.array(counts, dtype=np.uint32) if counts else None
-        self.stopwords = Stopwords()
-
-        if build_table and counts:
-            self._table = self._build_table(table_size, power)
-        else:
-            self._table = None
-
-    def _build_table(self, table_size, power):
-        """
-        Create a table using the vocabulary tokens counts, which can be used
-        for drawing random words in negative sampling routines (useful for
-        word2gauss.)
-        This function is called by the constructor if the build_table
-        flag is set to True.
-
-        From gensim's make_table in word2vec.py
-        """
-        table = np.zeros(table_size, dtype=np.uint32)
-        # compute sum of all power (Z in paper)
-        train_words_pow = float(sum((count**power for count in self.counts)))
-        # go through the whole table and fill it up with the word indexes
-        # proportional to a word's count**power
-        widx = 0
-        # normalize count^0.75 by Z
-        d1 = self.counts[widx]**power / train_words_pow
-        vocab_size = len(self.counts)
-        for tidx in xrange(table_size):
-            table[tidx] = widx
-            if 1.0 * tidx / table_size > d1:
-                widx += 1
-                d1 += self.counts[widx]**power / train_words_pow
-            if widx >= vocab_size:
-                widx = vocab_size - 1
-        return table
+        self._lookup_table = IndexLookupTable(counts, table_size, power)
 
     def __dealloc__(self):
         del self._vocabptr
 
     def __len__(self):
         return self._vocabptr.size()
+
+    def create(self, corpus, ngram_counts, keep_unigram_stopwords=True):
+        """
+        Create the vocabulary from the given corpus
+
+        corpus: an iterable that produces documents (as strings) from a corpus
+        ngram_counts: a list of tuples, one per ngram order that specifies the
+        maximum number of tokens to keep, the minimum count required
+        for a token, and a discounting coefficient (which prevents too many
+        ngrams consisting of very infrequent words to be formed)
+        keep_unigram_stopwords: if True (default), keep the unigrams that are
+        stopwords. If False, remove the stopwords from the vocabulary
+        """
+        for nkeep, min_count, delta in ngram_counts:
+            for doc in corpus:
+                self._vocabptr.accumulate(self._tokenizer(doc))
+            self._vocabptr.update(nkeep, min_count, delta)
+            # if corpus is a file iterator, we need to seek to the
+            # beginning in order to iterate over it again
+            if hasattr(corpus, 'seek'):
+                corpus.seek(0)
+        self._vocabptr.save(keep_unigram_stopwords)
+        vlen = self._vocabptr.size()
+        self.counts = np.zeros(vlen, dtype=np.uint32)
+        for k in xrange(vlen):
+            self.counts[k] = self._vocabptr.get_id2count(k)
+        self._lookup_table.update_table(self.counts)
+
+    def add_ngrams(self, ngrams):
+        """
+        Add the list of ngrams to the vocabulary. This is meant for when we
+        want to update the vocabulary with new items.
+
+        ngram: iterable of ngrams to add
+        """
+        count = 0
+        for ngram in ngrams:
+            # avoid duplicates in the vocabulary
+            tokenid = self._vocabptr.get_word2id(ngram)
+            if tokenid == -1:
+                order = ngram.count('_')
+                self._vocabptr.add_ngram(ngram, order)
+                count += 1
+        if self.counts is None:
+             self.counts = np.zeros(self._vocabptr.size(), dtype=np.uint32)
+        else:
+            tmp = np.zeros(count, dtype=np.uint32)
+            self.counts = np.concatenate((self.counts, tmp), axis=1)
+
+    def update_counts(self, corpus):
+        """
+        Update the counts of the current vocabulary with the given corpus
+        """
+        for doc in corpus:
+            ids = self.tokenize_ids(doc, remove_oov=True)
+            self.counts[ids] += 1
+        self._lookup_table.update_table(self.counts)
 
     def word2id(self, string w):
         """
@@ -155,28 +227,7 @@ cdef class Vocabulary:
         Write the vocabulary to a file
         """
         with GzipFile(fname, 'w') as fout:
-            # first the stop words
-            sw_count = len(self.stopwords.word2id)
-            for k in xrange(self.stopwords.min_id,
-                            self.stopwords.min_id+sw_count):
-                cnt = self._vocabptr.get_swid2count(<size_t>k)
-                if cnt:
-                    fout.write(self.stopwords.id2word[k])
-                    fout.write('\t')
-                    fout.write(str(cnt))
-                    fout.write('\n')
-
-            # then the n-grams
-            we = self.stopwords.word2id.end()
             for k in xrange(self._vocabptr.size()):
-                t = self.id2word(k)
-                # don't keep n-grams that end in a stop word
-                # the n-gram generation code has already taken care of n-grams
-                # that start with a stopword
-                if '_' in t:
-                    tokens = t.split('_')
-                    if self.stopwords.word2id.find(tokens[-1]) != we:
-                        continue
                 fout.write(self.id2word(k))
                 fout.write('\t')
                 fout.write(str(self._vocabptr.get_id2count(k)))
@@ -214,77 +265,48 @@ cdef class Vocabulary:
         """
         Returns a random id from the vocabulary, using the index lookup table
         """
-        return self._table[np.random.randint(0, len(self._table))]
+        return self._lookup_table.random_id()
 
     def random_ids(self, num):
         """
         Returns an array of random ids from the vocabulary, using the index
-        lookup table, which needs to have been created when the vocabulary was
-        loaded.
+        lookup table
+
         num: number of ids to return
         """
-        idxs = np.random.randint(0, len(self._table), num)
-        return self._table[idxs]
-
-    def accumulate(self, doc):
-        """
-        Accumulate the n-gram counts for the document. This method tokenizes the
-        input string with the tokenizer that was specified when the Vocabulary
-        instance was created.
-        """
-        cdef vector[string] tokens = self._tokenizer(doc)
-        self._vocabptr.accumulate(tokens, self.stopwords.word2id)
-
-    def accumulate_tokens(self, tokens):
-        """
-        Accumulate the n-gram counts for the list of tokens (this is useful
-        when the document has already been tokenized.)
-        """
-        self._vocabptr.accumulate(tokens, self.stopwords.word2id)
-
-    def update(self, keep=100000, min_count=1):
-        """
-        Update the vocabulary with the accumulated counts
-
-        keep: the number of new tokens to add to the vocabulary
-        min_count: the minimum count to keep
-        """
-        self._vocabptr.update(keep, min_count,
-                              self.stopwords.word2id, self.stopwords.id2word)
+        return self._lookup_table.random_ids(num)
 
     @classmethod
     def load(cls, fname, tokenizer=alpha_tokenize,
-             build_table=True,
              table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         """
         Create a Vocabulary instance, loading data from a file
 
         fname: name of file to load
         tokenizer: tokenizer to use with this Vocabulary instance
-        build_table: if True, build the index lookup table, which is used in
-        negative sampling in word2gauss
-        table_size: size of lookup table
-        power: power used in filling the lookup table
+        table_size: size of the index lookup table (which is used in negative
+        sampling in word2gauss)
+        power: power used in filling the index lookup table
         """
         with GzipFile(fname, 'r') as fin:
-            vocab = [{}]
+            vocab = []
             counts = []
-            n = 0
             wordid = 0
             for line in fin:
                 line = line.rstrip('\n')
                 linearr = line.split('\t')
                 token = linearr[0]
-                nunderscore = len(re.findall('_', token))
-                if nunderscore > n:
-                    assert(n == nunderscore - 1)
-                    n += 1
+                # number of underscores tells us what kind of ngram this is
+                # (and index into vocab list)
+                idx = token.count('_')
+                # num: number of {} to add to list
+                num = idx - len(vocab) + 1
+                for i in xrange(num):
                     vocab.append({})
-                vocab[-1][token] = wordid
+                vocab[idx][token] = wordid
                 if len(linearr) > 1:
                     counts.append(int(linearr[1]))
                 wordid += 1
 
         return cls(vocab=vocab, tokenizer=tokenizer, counts=counts,
-                   build_table=build_table,
                    table_size=table_size, power=power)
