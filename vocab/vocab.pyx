@@ -233,7 +233,7 @@ cdef class Vocabulary:
                 fout.write(str(self._vocabptr.get_id2count(k)))
                 fout.write('\n')
 
-    def tokenize(self, string text, remove_oov=True):
+    def tokenize(self, text, remove_oov=True):
         """
         Tokenize an input string, grouping n-grams aggressively
 
@@ -246,7 +246,7 @@ cdef class Vocabulary:
         self._vocabptr.group_ngrams(tokens, ret, remove_oov)
         return ret
 
-    def tokenize_ids(self, string text, remove_oov=True):
+    def tokenize_ids(self, text, remove_oov=True):
         """
         Tokenize an input string, grouping n-grams aggressively. This function
         returns the token ids.
