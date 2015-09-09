@@ -34,6 +34,8 @@ class TestVocabulary(unittest.TestCase):
         counts = [3, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2]
         self.vocab = vocab.Vocabulary(ngrams)
         self.vocab_sw = vocab.Vocabulary(ngrams_sw, counts=counts)
+        self.vocab_whitespace = vocab.Vocabulary(
+            ngrams, tokenizer=lambda s: s.split())
 
     def test_word2id(self):
         self.assertEqual(self.vocab.word2id('city'), 2)
@@ -81,6 +83,11 @@ class TestVocabulary(unittest.TestCase):
         doc = 'New York City is in New York. Yay!'
         ids = self.vocab_sw.tokenize_ids(doc, remove_oov=False)
         self.assertEqual(list(ids), [8, 9, 10, 5, 4294967295])
+
+    def test_tokenize_underscore(self):
+        doc = 'new york a_b new _b_c_d_e_f'
+        self.assertEqual(self.vocab_whitespace.tokenize(doc),
+            ['new_york', 'new'])
 
     def test_random_id(self):
         np.random.seed(123)
