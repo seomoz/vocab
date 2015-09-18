@@ -190,13 +190,6 @@ void Vocab::group_ngrams(std::vector<std::string> & tokens,
     // remove all empty strings
     // If remove_oov is true, remove the out-of-vocabulary unigrams; otherwise,
     // add "OOV" to the return
-    /*
-    #include <algorithm>
-
-    std::string s = "a_b_c";
-    size_t n = std::count(s.begin(), s.end(), '_');
-    */
-
     ret.clear();
     for (std::vector<std::string>::iterator it = tokens.begin();
          it != tokens.end(); ++it)
