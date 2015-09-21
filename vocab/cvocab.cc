@@ -195,7 +195,7 @@ void Vocab::group_ngrams(std::vector<std::string> & tokens,
          it != tokens.end(); ++it)
     {
         // nothing to do if token was combined with another
-        if (*it == "")
+        if (it->empty())
             continue;
 
         vocab_ngram_t::iterator got_unigram = vocab[0].find(*it);
