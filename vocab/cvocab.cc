@@ -194,17 +194,27 @@ void Vocab::group_ngrams(std::vector<std::string> & tokens,
     for (std::vector<std::string>::iterator it = tokens.begin();
          it != tokens.end(); ++it)
     {
+        // nothing to do if token was combined with another
+        if (it->empty())
+            continue;
+
         vocab_ngram_t::iterator got_unigram = vocab[0].find(*it);
         bool is_unigram = got_unigram != vocab[0].end();
-        std::size_t got_ngram = it->find("_");
-        bool is_ngram = got_ngram != std::string::npos;
-        if (*it != "")
+
+        // check if it's an n-gram
+        size_t n_underscore = std::count(it->begin(), it->end(), '_');
+        bool is_ngram = false;
+        if ((n_underscore > 0) && (n_underscore <= (max_ngram - 1)))
         {
-            if (is_unigram || is_ngram)
-                ret.push_back(*it);
-            else if (!remove_oov)
-                ret.push_back("OOV");
+            vocab_ngram_t::iterator got_ngram = vocab[n_underscore].find(*it);
+            is_ngram = got_ngram != vocab[n_underscore].end();
         }
+        
+        // add to list
+        if (is_unigram || is_ngram)
+            ret.push_back(*it);
+        else if (!remove_oov)
+            ret.push_back("OOV");
     }
 }
 

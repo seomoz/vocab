@@ -33,12 +33,20 @@ def alpha_tokenize(s):
 
 
 def load_stopwords(stop_file=None):
+    '''
+    stop_file is None (use default list), or string (with filename) or
+        iterable
+    '''
     stopwords = set()
-    if stop_file:
+    if stop_file is None:
+        words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
+    elif isinstance(stop_file, basestring):
+        # a file name
         with file(stop_file, 'r') as f:
             words = [line.rstrip() for line in f]
     else:
-        words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
+        # assume to be iterable
+        words = stop_file
     for word in words:
         stopwords.add(word)
     return stopwords
@@ -107,14 +115,15 @@ cdef class Vocabulary:
         self._tokenizer = tokenizer
 
 
-    def __cinit__(self, vocab=None, tokenizer=None, stopword_file = None,
+    def __cinit__(self, vocab=None, tokenizer=None, stopword_file=None,
                   counts=None,
                   table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         """
         vocab: vocabulary
         tokenizer: a tokenizer that splits strings into individual tokens
         stopword_file: file containing stopwords. If None, the default
-        stopword list is used.
+            stopword list is used.  If an iterable then gives
+            the list of stop words
         counts: word counts
         table_size: index lookup table size
         power: power used in building index lookup table
@@ -233,7 +242,7 @@ cdef class Vocabulary:
                 fout.write(str(self._vocabptr.get_id2count(k)))
                 fout.write('\n')
 
-    def tokenize(self, string text, remove_oov=True):
+    def tokenize(self, text, remove_oov=True):
         """
         Tokenize an input string, grouping n-grams aggressively
 
@@ -246,7 +255,7 @@ cdef class Vocabulary:
         self._vocabptr.group_ngrams(tokens, ret, remove_oov)
         return ret
 
-    def tokenize_ids(self, string text, remove_oov=True):
+    def tokenize_ids(self, text, remove_oov=True):
         """
         Tokenize an input string, grouping n-grams aggressively. This function
         returns the token ids.
@@ -277,7 +286,7 @@ cdef class Vocabulary:
         return self._lookup_table.random_ids(num)
 
     @classmethod
-    def load(cls, fname, tokenizer=alpha_tokenize,
+    def load(cls, fname, tokenizer=alpha_tokenize, stopwords_file=None,
              table_size=DEFAULT_TABLE_SIZE, power=DEFAULT_POWER):
         """
         Create a Vocabulary instance, loading data from a file
@@ -309,4 +318,5 @@ cdef class Vocabulary:
                 wordid += 1
 
         return cls(vocab=vocab, tokenizer=tokenizer, counts=counts,
+                   stopword_file=stopwords_file,
                    table_size=table_size, power=power)
