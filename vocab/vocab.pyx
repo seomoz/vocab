@@ -198,7 +198,7 @@ cdef class Vocabulary:
              self.counts = np.zeros(self._vocabptr.size(), dtype=np.uint32)
         else:
             tmp = np.zeros(count, dtype=np.uint32)
-            self.counts = np.concatenate((self.counts, tmp), axis=1)
+            self.counts = np.concatenate((self.counts, tmp), axis=0)
 
     def update_counts(self, corpus):
         """
