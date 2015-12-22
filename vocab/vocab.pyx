@@ -15,6 +15,7 @@ from gzip import GzipFile
 DEFAULT_TABLE_SIZE = 10**6
 DEFAULT_POWER = 0.75
 
+LARGEST_UINT32 = 4294967295
 
 re_tokenize = re.compile(r'(((?![\d|_])\w)+)', re.UNICODE)
 re_keep = re.compile(r'[a-z]')
@@ -190,7 +191,7 @@ cdef class Vocabulary:
         for ngram in ngrams:
             # avoid duplicates in the vocabulary
             tokenid = self._vocabptr.get_word2id(ngram)
-            if tokenid == -1:
+            if tokenid == LARGEST_UINT32:
                 order = ngram.count('_')
                 self._vocabptr.add_ngram(ngram, order)
                 count += 1
@@ -198,7 +199,7 @@ cdef class Vocabulary:
              self.counts = np.zeros(self._vocabptr.size(), dtype=np.uint32)
         else:
             tmp = np.zeros(count, dtype=np.uint32)
-            self.counts = np.concatenate((self.counts, tmp), axis=1)
+            self.counts = np.concatenate((self.counts, tmp), axis=0)
 
     def update_counts(self, corpus):
         """
@@ -215,7 +216,7 @@ cdef class Vocabulary:
         Raises KeyError if the string is not in the vocabulary
         """
         cdef uint32_t tokenid = self._vocabptr.get_word2id(w)
-        if tokenid == -1:
+        if tokenid == LARGEST_UINT32:
             raise KeyError
         else:
             return tokenid

@@ -139,6 +139,13 @@ class TestVocabulary(unittest.TestCase):
             self.assertEqual(v.id2word(i), tokens[i][0])
             self.assertEqual(v.counts[i], tokens[i][1])
 
+    def test_add_ngrams(self):
+        ngrams_to_add = ['new_words', 'in_the_vocab']
+        for vcb in [self.vocab, self.vocab_sw]:
+            original_len = len(vcb)
+            vcb.add_ngrams(ngrams_to_add)
+            self.assertEqual(len(vcb), original_len + 2)
+            self.assertEqual(vcb.word2id('in_the_vocab'), original_len + 2 - 1)
 
 class TestVocabularyCreate(unittest.TestCase):
     """

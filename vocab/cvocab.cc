@@ -228,8 +228,8 @@ uint32_t Vocab::get_word2id(std::string & word)
             return got->second;
     }
 
-    // otherwise return -1 (note: will be converted to max unsigned int32)
-    return -1;
+    // otherwise return max unsigned int32
+    return 4294967295;
 }
 
 std::string Vocab::get_id2word(std::size_t k)
