@@ -1,4 +1,4 @@
 nose
 coverage
-Cython>=0.21.1
+Cython==0.23.1
 
