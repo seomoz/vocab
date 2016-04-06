@@ -142,8 +142,8 @@ cdef class Vocabulary:
                     ngram[token] = tokenid
                 v.push_back(ngram)
 
-        stopwords = load_stopwords(stopword_file)
-        self._vocabptr = new Vocab(v, stopwords)
+        self.stopwords = load_stopwords(stopword_file)
+        self._vocabptr = new Vocab(v, self.stopwords)
         self.counts = np.array(counts, dtype=np.uint32) if counts else None
         self._lookup_table = IndexLookupTable(counts, table_size, power)
 
@@ -180,7 +180,7 @@ cdef class Vocabulary:
             self.counts[k] = self._vocabptr.get_id2count(k)
         self._lookup_table.update_table(self.counts)
 
-    def add_ngrams(self, ngrams):
+    def add_ngrams(self, ngrams, exclude_stopwords=False):
         """
         Add the list of ngrams to the vocabulary. This is meant for when we
         want to update the vocabulary with new items.
@@ -189,6 +189,8 @@ cdef class Vocabulary:
         """
         count = 0
         for ngram in ngrams:
+            if exclude_stopwords and ngram in self.stopwords:
+                continue
             # avoid duplicates in the vocabulary
             tokenid = self._vocabptr.get_word2id(ngram)
             if tokenid == LARGEST_UINT32:

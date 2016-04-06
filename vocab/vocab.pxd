@@ -31,6 +31,7 @@ cdef extern from "cvocab.cc":
 cdef class Vocabulary:
     cdef Vocab *_vocabptr
     cdef np.ndarray _table
+    cdef object stopwords
     cdef object _tokenizer
     cdef object _lookup_table
     cdef readonly np.ndarray counts
