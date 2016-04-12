@@ -203,6 +203,9 @@ cdef class Vocabulary:
             tmp = np.zeros(count, dtype=np.uint32)
             self.counts = np.concatenate((self.counts, tmp), axis=0)
 
+    def is_stopword(self, word):
+        return word in self.stopwords
+
     def update_counts(self, corpus):
         """
         Update the counts of the current vocabulary with the given corpus

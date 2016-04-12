@@ -35,3 +35,5 @@ cdef class Vocabulary:
     cdef object _tokenizer
     cdef object _lookup_table
     cdef readonly np.ndarray counts
+    cdef bool is_stopword
+
