@@ -142,8 +142,8 @@ cdef class Vocabulary:
                     ngram[token] = tokenid
                 v.push_back(ngram)
 
-        self.stopwords = load_stopwords(stopword_file)
-        self._vocabptr = new Vocab(v, self.stopwords)
+        self._stopwords = load_stopwords(stopword_file)
+        self._vocabptr = new Vocab(v, self._stopwords)
         self.counts = np.array(counts, dtype=np.uint32) if counts else None
         self._lookup_table = IndexLookupTable(counts, table_size, power)
 
@@ -189,7 +189,7 @@ cdef class Vocabulary:
         """
         count = 0
         for ngram in ngrams:
-            if exclude_stopwords and ngram in self.stopwords:
+            if exclude_stopwords and ngram in self._stopwords:
                 continue
             # avoid duplicates in the vocabulary
             tokenid = self._vocabptr.get_word2id(ngram)
@@ -204,7 +204,7 @@ cdef class Vocabulary:
             self.counts = np.concatenate((self.counts, tmp), axis=0)
 
     def is_stopword(self, word):
-        return word in self.stopwords
+        return word in self._stopwords
 
     def update_counts(self, corpus):
         """
