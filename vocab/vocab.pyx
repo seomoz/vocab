@@ -18,7 +18,7 @@ DEFAULT_POWER = 0.75
 
 LARGEST_UINT32 = 4294967295
 
-re_tokenize = re.compile(rb'(((?![\d|_])\w)+)', re.UNICODE)
+re_tokenize = re.compile(r'(((?![\d|_])\w)+)', re.UNICODE)
 re_keep = re.compile(rb'[a-z]')
 def alpha_tokenize(s):
     """
