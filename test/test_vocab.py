@@ -4,16 +4,15 @@ import numpy as np
 
 from vocab import vocab
 
-
 class TestTokenize(unittest.TestCase):
     def test_tokenize(self):
-        self.assertEqual(['k', 'd', 'iphone', 'kw', 'yo'],
+        self.assertEqual([b'k', b'd', b'iphone', b'kw', b'yo'],
                     vocab.alpha_tokenize(' %8k_d iPhone   \t  \n kw231 yo!'))
 
         self.assertEqual([], vocab.alpha_tokenize("1 + 1 = 2"))
 
         self.assertEqual(
-            ['registered', 'trademark', '\xc3\xa9t\xc3\xa9'],
+            [b'registered', b'trademark', b'\xc3\xa9t\xc3\xa9'],
             vocab.alpha_tokenize(
                 u'Registered Trademark \xae \u03b4\u03bf\u03b3 \xe9t\xe9'))
 
@@ -109,7 +108,7 @@ class TestVocabulary(unittest.TestCase):
         vocab_loaded = vocab.Vocabulary.load(fname)
 
         self.assertEqual(len(self.vocab), len(vocab_loaded))
-        for k in xrange(len(self.vocab)):
+        for k in range(len(self.vocab)):
             self.assertEqual(self.vocab.id2word(k), vocab_loaded.id2word(k))
             token = self.vocab.id2word(k)
             self.assertEqual(
@@ -120,14 +119,14 @@ class TestVocabulary(unittest.TestCase):
         We should be able load a vocabulary file that has tokens that are not
         in ngram order
         """
-        from gzip import GzipFile
+        import gzip
         import tempfile
         (fid, fname) = tempfile.mkstemp()
 
         tokens = [('a_b', 4), ('a_b_c', 7), ('a', 10), ('b', 3), ('d_e', 4),
                   ('d_e_f', 2), ('b_c', 4)]
 
-        with GzipFile(fname, 'w') as f:
+        with gzip.open(fname, 'wt') as f:
             for token, count in tokens:
                 f.write(token)
                 f.write('\t')
@@ -135,7 +134,7 @@ class TestVocabulary(unittest.TestCase):
                 f.write('\n')
         v = vocab.Vocabulary.load(fname)
         self.assertEqual(len(v), len(tokens))
-        for i in xrange(len(v)):
+        for i in range(len(v)):
             self.assertEqual(v.id2word(i), tokens[i][0])
             self.assertEqual(v.counts[i], tokens[i][1])
 
@@ -172,7 +171,7 @@ class TestVocabularyCreate(unittest.TestCase):
         v = vocab.Vocabulary()
         v.create(self.corpus, [(1000, 1, 1)])
         actual = sorted(
-            [v.id2word(k) for k in xrange(len(self.expected_unigrams))])
+            [v.id2word(k) for k in range(len(self.expected_unigrams))])
         self.assertEqual(actual, sorted(self.expected_unigrams))
 
         self.assertRaises(IndexError, v.id2word,
@@ -191,7 +190,7 @@ class TestVocabularyCreate(unittest.TestCase):
                          self.expected_bigrams, self.expected_trigrams]:
             # check id2word
             actual = [v.id2word(k)
-                      for k in xrange(tokenid, tokenid + len(expected))]
+                      for k in range(tokenid, tokenid + len(expected))]
             self.assertEqual(sorted(actual), sorted(expected))
 
             # check word2id
@@ -218,11 +217,11 @@ class TestVocabularyCreate(unittest.TestCase):
         v = vocab.Vocabulary()
         v.add_ngrams(ngrams)
         self.assertEqual(len(v), len(ngrams))
-        for i in xrange(v.counts.size):
+        for i in range(v.counts.size):
             self.assertEqual(v.counts[i], 0)
         v.update_counts(self.corpus)
         expected_counts = [2, 2, 2, 1, 2, 2, 2, 1]
-        for i in xrange(v.counts.size):
+        for i in range(v.counts.size):
             self.assertEqual(v.counts[i], expected_counts[i])
 
 

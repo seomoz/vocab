@@ -1,3 +1,4 @@
+# cython: c_string_type=unicode, c_string_encoding=ascii
 
 # c imports
 cimport cython
@@ -9,7 +10,7 @@ import re
 import pkgutil
 import numpy as np
 
-from gzip import GzipFile
+import gzip
 
 
 DEFAULT_TABLE_SIZE = 10**6
@@ -17,8 +18,8 @@ DEFAULT_POWER = 0.75
 
 LARGEST_UINT32 = 4294967295
 
-re_tokenize = re.compile(r'(((?![\d|_])\w)+)', re.UNICODE)
-re_keep = re.compile(r'[a-z]')
+re_tokenize = re.compile(rb'(((?![\d|_])\w)+)', re.UNICODE)
+re_keep = re.compile(rb'[a-z]')
 def alpha_tokenize(s):
     """
     Simple tokenizer: tokenize the the string and return a list of the tokens
@@ -43,7 +44,7 @@ def load_stopwords(stop_file=None):
         words = pkgutil.get_data('vocab', 'stop_words.txt').strip().split()
     elif isinstance(stop_file, basestring):
         # a file name
-        with file(stop_file, 'r') as f:
+        with open(stop_file, 'r') as f:
             words = [line.rstrip() for line in f]
     else:
         # assume to be iterable
@@ -241,7 +242,7 @@ cdef class Vocabulary:
         """
         Write the vocabulary to a file
         """
-        with GzipFile(fname, 'w') as fout:
+        with gzip.open(fname, 'wt') as fout:
             for k in xrange(self._vocabptr.size()):
                 fout.write(self.id2word(k))
                 fout.write('\t')
@@ -303,7 +304,7 @@ cdef class Vocabulary:
         sampling in word2gauss)
         power: power used in filling the index lookup table
         """
-        with GzipFile(fname, 'r') as fin:
+        with gzip.open(fname, 'rt') as fin:
             vocab = []
             counts = []
             wordid = 0
