@@ -1,5 +1,3 @@
-# cython: c_string_type=unicode, c_string_encoding=ascii
-
 # c imports
 cimport cython
 cimport numpy as np
@@ -19,18 +17,19 @@ DEFAULT_POWER = 0.75
 LARGEST_UINT32 = 4294967295
 
 re_tokenize = re.compile(r'(((?![\d|_])\w)+)', re.UNICODE)
-re_keep = re.compile(rb'[a-z]')
+re_keep = re.compile(r'[a-z]')
 def alpha_tokenize(s):
     """
     Simple tokenizer: tokenize the the string and return a list of the tokens
     """
     if isinstance(s, unicode):
-        candidates = [token[0].encode('utf-8')
+        candidates = [token[0]
             for token in re_tokenize.findall(s.lower())]
     else:
-        candidates = [token[0].encode('utf-8')
+        candidates = [token[0]
             for token in re_tokenize.findall(s.decode('utf-8').lower())]
     # only keep tokens with at least one ascii character
+	#TODO: is this what you really want?
     return [token for token in candidates if re_keep.search(token)]
 
 
@@ -140,7 +139,7 @@ cdef class Vocabulary:
             for tokens in vocab:
                 ngram.clear()
                 for token, tokenid in tokens.iteritems():
-                    ngram[token] = tokenid
+                    ngram[token.encode('utf-8')] = tokenid
                 v.push_back(ngram)
 
         self._stopwords = load_stopwords(stopword_file)
@@ -168,7 +167,7 @@ cdef class Vocabulary:
         """
         for nkeep, min_count, delta in ngram_counts:
             for doc in corpus:
-                self._vocabptr.accumulate(self._tokenizer(doc))
+                self._vocabptr.accumulate([token.encode('utf-8') for token in self._tokenizer(doc)])
             self._vocabptr.update(nkeep, min_count, delta)
             # if corpus is a file iterator, we need to seek to the
             # beginning in order to iterate over it again
@@ -190,13 +189,14 @@ cdef class Vocabulary:
         """
         count = 0
         for ngram in ngrams:
+		#TODO: just automatically encode ngram?
             if exclude_stopwords and ngram in self._stopwords:
                 continue
             # avoid duplicates in the vocabulary
-            tokenid = self._vocabptr.get_word2id(ngram)
+            tokenid = self._vocabptr.get_word2id(ngram.encode('utf-8'))
             if tokenid == LARGEST_UINT32:
                 order = ngram.count('_')
-                self._vocabptr.add_ngram(ngram, order)
+                self._vocabptr.add_ngram(ngram.encode('utf-8'), order)
                 count += 1
         if self.counts is None:
              self.counts = np.zeros(self._vocabptr.size(), dtype=np.uint32)
@@ -216,12 +216,12 @@ cdef class Vocabulary:
             self.counts[ids] += 1
         self._lookup_table.update_table(self.counts)
 
-    def word2id(self, string w):
+    def word2id(self, w):
         """
         Given a token string, return its id
         Raises KeyError if the string is not in the vocabulary
         """
-        cdef uint32_t tokenid = self._vocabptr.get_word2id(w)
+        cdef uint32_t tokenid = self._vocabptr.get_word2id(w.encode('utf-8'))
         if tokenid == LARGEST_UINT32:
             raise KeyError
         else:
@@ -232,11 +232,11 @@ cdef class Vocabulary:
         Given an id, return the token
         Raises IndexError if the token is not in the vocabulary
         """
-        cdef string token = self._vocabptr.get_id2word(<size_t>k)
+        token = self._vocabptr.get_id2word(<size_t>k)
         if token.size() == 0:
             raise IndexError
         else:
-            return token
+            return token.decode('utf-8')
 
     def save(self, fname):
         """
@@ -257,10 +257,10 @@ cdef class Vocabulary:
         remove_oov: if True, remove out-of-vocabulary tokens from output;
         otherwise, return 'OOV' for the out-of-vocab tokens
         """
-        cdef vector[string] tokens = self._tokenizer(text)
+        cdef vector[string] tokens = [token.encode('utf-8') for token in self._tokenizer(text)]
         cdef vector[string] ret
         self._vocabptr.group_ngrams(tokens, ret, remove_oov)
-        return ret
+        return [token.decode('utf-8') for token in ret]
 
     def tokenize_ids(self, text, remove_oov=True):
         """
@@ -274,7 +274,7 @@ cdef class Vocabulary:
         tokens = self.tokenize(text, remove_oov)
         ids = np.zeros(len(tokens), dtype=np.uint32)
         for i, token in enumerate(tokens):
-            ids[i] = self._vocabptr.get_word2id(token)
+            ids[i] = self._vocabptr.get_word2id(token.encode('utf-8'))
         return ids
 
     def random_id(self):

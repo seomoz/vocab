@@ -6,13 +6,13 @@ from vocab import vocab
 
 class TestTokenize(unittest.TestCase):
     def test_tokenize(self):
-        self.assertEqual([b'k', b'd', b'iphone', b'kw', b'yo'],
+        self.assertEqual(['k', 'd', 'iphone', 'kw', 'yo'],
                     vocab.alpha_tokenize(' %8k_d iPhone   \t  \n kw231 yo!'))
 
         self.assertEqual([], vocab.alpha_tokenize("1 + 1 = 2"))
 
         self.assertEqual(
-            [b'registered', b'trademark', b'\xc3\xa9t\xc3\xa9'],
+            ['registered', 'trademark', u'\xe9t\xe9'],
             vocab.alpha_tokenize(
                 u'Registered Trademark \xae \u03b4\u03bf\u03b3 \xe9t\xe9'))
 
