@@ -30,7 +30,7 @@ def alpha_tokenize(s):
         candidates = [token[0]
             for token in re_tokenize.findall(s.decode('utf-8').lower())]
     # only keep tokens with at least one ascii character
-	#TODO: is this what you really want?
+    #TODO: is this what you really want? What about languages that don't use Latin characters?
     return [token for token in candidates if re_keep.search(token)]
 
 
@@ -190,7 +190,7 @@ cdef class Vocabulary:
         """
         count = 0
         for ngram in ngrams:
-		#TODO: just automatically encode ngram?
+        #TODO: just automatically encode ngram?
             if exclude_stopwords and ngram in self._stopwords:
                 continue
             # avoid duplicates in the vocabulary
