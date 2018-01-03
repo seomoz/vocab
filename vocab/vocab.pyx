@@ -8,7 +8,8 @@ import re
 import pkgutil
 import numpy as np
 
-import gzip
+from gzip import open as gzopen
+from io import TextIOWrapper, BufferedReader, BufferedWriter
 
 
 DEFAULT_TABLE_SIZE = 10**6
@@ -139,7 +140,7 @@ cdef class Vocabulary:
             for tokens in vocab:
                 ngram.clear()
                 for token, tokenid in tokens.iteritems():
-                    ngram[token.encode('utf-8')] = tokenid
+                    ngram[token.encode('utf-8') if isinstance(token, unicode) else token] = tokenid
                 v.push_back(ngram)
 
         self._stopwords = load_stopwords(stopword_file)
@@ -242,12 +243,13 @@ cdef class Vocabulary:
         """
         Write the vocabulary to a file
         """
-        with gzip.open(fname, 'wt') as fout:
+        with TextIOWrapper(BufferedWriter(gzopen(fname, 'w')), encoding='utf-8') as fout:
+            #equivalent to using mode="wt" but works in both Python 2 and 3
             for k in xrange(self._vocabptr.size()):
                 fout.write(self.id2word(k))
-                fout.write('\t')
-                fout.write(str(self._vocabptr.get_id2count(k)))
-                fout.write('\n')
+                fout.write(u'\t')
+                fout.write(unicode(self._vocabptr.get_id2count(k)))
+                fout.write(u'\n')
 
     def tokenize(self, text, remove_oov=True):
         """
@@ -304,7 +306,8 @@ cdef class Vocabulary:
         sampling in word2gauss)
         power: power used in filling the index lookup table
         """
-        with gzip.open(fname, 'rt') as fin:
+        with TextIOWrapper(BufferedReader(gzopen(fname, 'r')), encoding='utf-8') as fin:
+            #equivalent to using mode="wt" but works in both Python 2 and 3
             vocab = []
             counts = []
             wordid = 0
