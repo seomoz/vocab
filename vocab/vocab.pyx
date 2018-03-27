@@ -30,7 +30,8 @@ def alpha_tokenize(s):
         candidates = [token[0]
             for token in re_tokenize.findall(s.decode('utf-8').lower())]
     # only keep tokens with at least one ascii character
-    #TODO: is this what you really want? What about languages that don't use Latin characters?
+    # TODO: is this what you really want? What about languages that
+    # don't use Latin characters?
     return [token for token in candidates if re_keep.search(token)]
 
 
@@ -190,7 +191,7 @@ cdef class Vocabulary:
         """
         count = 0
         for ngram in ngrams:
-        #TODO: just automatically encode ngram?
+            # TODO: just automatically encode ngram?
             if exclude_stopwords and ngram in self._stopwords:
                 continue
             # avoid duplicates in the vocabulary
@@ -244,7 +245,7 @@ cdef class Vocabulary:
         Write the vocabulary to a file
         """
         with TextIOWrapper(BufferedWriter(gzopen(fname, 'w')), encoding='utf-8') as fout:
-            #equivalent to using mode="wt" but works in both Python 2 and 3
+            # equivalent to using mode="wt" but works in both Python 2 and 3
             for k in xrange(self._vocabptr.size()):
                 fout.write(self.id2word(k))
                 fout.write(u'\t')
@@ -306,8 +307,8 @@ cdef class Vocabulary:
         sampling in word2gauss)
         power: power used in filling the index lookup table
         """
+        # equivalent to using mode="wt" but works in both Python 2 and 3
         with TextIOWrapper(BufferedReader(gzopen(fname, 'r')), encoding='utf-8') as fin:
-            #equivalent to using mode="wt" but works in both Python 2 and 3
             vocab = []
             counts = []
             wordid = 0
